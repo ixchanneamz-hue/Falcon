@@ -3,24 +3,25 @@ from aiogram.types import Message
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
+from config import ADMIN_ID
+
 router = Router()
 
-ADMIN_ID = 986072050
 
 class SupportState(StatesGroup):
     waiting_for_message = State()
 
+
 @router.message(F.text == "📞 الدعم الفني")
 async def support_start(message: Message, state: FSMContext):
-    print("SUPPORT BUTTON PRESSED")
-    
     await state.clear()
     await state.set_state(SupportState.waiting_for_message)
-    
+
     await message.answer(
         "📞 الدعم الفني\n"
         "أرسل رسالتك الآن وسيتم إرسالها للإدارة."
     )
+
 
 @router.message(SupportState.waiting_for_message)
 async def send_support_message(message: Message, state: FSMContext):
