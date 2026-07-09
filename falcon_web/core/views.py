@@ -1,6 +1,8 @@
 from decimal import Decimal
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from .models import Task, TaskCompletion, Wallet, Withdrawal
@@ -10,21 +12,28 @@ def home(request):
     return render(request, 'core/home.html')
 
 
+def register(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    form = UserCreationForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        user = form.save()
+        Wallet.objects.get_or_create(user=user)
+        login(request, user)
+        return redirect('dashboard')
+    return render(request, 'registration/register.html', {'form': form})
+
+
 @login_required
 def dashboard(request):
     wallet, _ = Wallet.objects.get_or_create(user=request.user)
-    return render(request, 'core/dashboard.html', {
-        'balance': wallet.balance,
-        'completed_tasks': request.user.task_completions.count(),
-        'referrals': 0,
-    })
+    return render(request, 'core/dashboard.html', {'balance': wallet.balance, 'completed_tasks': request.user.task_completions.count(), 'referrals': 0})
 
 
 @login_required
 def tasks(request):
     completed_ids = request.user.task_completions.values_list('task_id', flat=True)
-    available = Task.objects.filter(is_active=True).exclude(id__in=completed_ids)
-    return render(request, 'core/tasks.html', {'tasks': available})
+    return render(request, 'core/tasks.html', {'tasks': Task.objects.filter(is_active=True).exclude(id__in=completed_ids)})
 
 
 @login_required
@@ -34,7 +43,10 @@ def complete_task(request, task_id):
     if request.method != 'POST':
         return render(request, 'core/complete_task.html', {'task': task})
     comment = request.POST.get('comment', '').strip()
-    rating = int(request.POST.get('rating', '0') or 0)
+    try:
+        rating = int(request.POST.get('rating', '0') or 0)
+    except ValueError:
+        rating = 0
     if len(comment.split()) < 3 or rating not in range(1, 6):
         messages.error(request, 'اكتب تعليقًا من 3 كلمات على الأقل واختر تقييمًا صحيحًا.')
         return redirect('complete_task', task_id=task.id)
